@@ -1,0 +1,121 @@
+/ --- تعريف الحساسات ---
+#define IR_FRONT  A0   // حساس IR أمامي
+#define IR_BACK   A1   // حساس IR خلفي
+
+#define trig1 6   // Ultrasonic أمامي يسار
+#define echo1 7
+#define trig2 8   // Ultrasonic أمامي يمين
+#define echo2 9
+
+// --- تعريف المحركات (PWM Pins) ---
+#define motorLeftIN1 10
+#define motorLeftIN2 11
+#define motorRightIN1 5
+#define motorRightIN2 3
+
+// --- سرعات الحركة ---
+int speedForward = 220;  // سرعة الهجوم
+int speedBackward = 180; // سرعة التراجع
+int speedSearch = 150;   // سرعة البحث
+
+// --- دالة قراءة المسافة ---
+long readUltrasonic(int trig, int echo) {
+  digitalWrite(trig, LOW);
+  delayMicroseconds(2);
+  digitalWrite(trig, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(trig, LOW);
+  long duration = pulseIn(echo, HIGH);
+  long distance = duration * 0.034 / 2; // سم
+  return distance;
+}
+
+void setup() {
+  pinMode(IR_FRONT, INPUT);
+  pinMode(IR_BACK, INPUT);
+
+  pinMode(trig1, OUTPUT);
+  pinMode(echo1, INPUT);
+  pinMode(trig2, OUTPUT);
+  pinMode(echo2, INPUT);
+
+  pinMode(motorLeftIN1, OUTPUT);
+  pinMode(motorLeftIN2, OUTPUT);
+  pinMode(motorRightIN1, OUTPUT);
+  pinMode(motorRightIN2, OUTPUT);
+
+  Serial.begin(9600);
+
+  // --- بداية التشغيل: انتظار 5 ثواني ---
+  stopMotors();
+  delay(5000);
+}
+
+// --- دوال الحركة مع سرعة ---
+void moveForward(int spd) {
+  analogWrite(motorLeftIN1, spd);
+  analogWrite(motorLeftIN2, 0);
+  analogWrite(motorRightIN1, spd);
+  analogWrite(motorRightIN2, 0);
+}
+
+void moveBackward(int spd) {
+  analogWrite(motorLeftIN1, 0);
+  analogWrite(motorLeftIN2, spd);
+  analogWrite(motorRightIN1, 0);
+  analogWrite(motorRightIN2, spd);
+}
+
+void turnLeft(int spd) {
+  analogWrite(motorLeftIN1, 0);
+  analogWrite(motorLeftIN2, spd);
+  analogWrite(motorRightIN1, spd);
+  analogWrite(motorRightIN2, 0);
+}
+
+void turnRight(int spd) {
+  analogWrite(motorLeftIN1, spd);
+  analogWrite(motorLeftIN2, 0);
+  analogWrite(motorRightIN1, 0);
+  analogWrite(motorRightIN2, spd);
+}
+
+void stopMotors() {
+  analogWrite(motorLeftIN1, 0);
+  analogWrite(motorLeftIN2, 0);
+  analogWrite(motorRightIN1, 0);
+  analogWrite(motorRightIN2, 0);
+}
+
+void loop() {
+  int irFront = digitalRead(IR_FRONT);
+  int irBack  = digitalRead(IR_BACK);
+
+  long distFrontLeft  = readUltrasonic(trig1, echo1);
+  long distFrontRight = readUltrasonic(trig2, echo2);
+
+  // --- منطق السومو ---
+
+  // إذا وصل للحافة الأمامية → يرجع للخلف
+  if (irFront == LOW) {
+    moveBackward(speedBackward);
+    delay(400);
+    stopMotors();
+  }
+  // إذا وصل للحافة الخلفية → يتقدم للأمام
+  else if (irBack == LOW) {
+    moveForward(speedBackward);
+    delay(400);
+    stopMotors();
+  }
+  // إذا الخصم قريب (أمام يسار أو يمين) → هجوم سريع
+  else if (distFrontLeft < 25 || distFrontRight < 25) {
+    moveForward(speedForward);
+  }
+  // إذا لا يوجد خصم → استدارة للبحث
+  else {
+    turnRight(speedSearch);
+    delay(300);
+    stopMotors();
+  }
+}
